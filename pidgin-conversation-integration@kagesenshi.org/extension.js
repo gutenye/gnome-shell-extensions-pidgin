@@ -195,27 +195,32 @@ const PURPLE_MESSAGE_SYSTEM = 0x4;
 const PURPLE_CONV_UPDATE_UNSEEN = 4;
 const ICON_SIZE = MessageTray.Source.prototype.SOURCE_ICON_SIZE;
 
+let extension = imports.misc.extensionUtils.getCurrentExtension();
+let metadata = extension.metadata;
+
 const Gettext = imports.gettext.domain('gnome-shell-extensions');
 const _ = Gettext.gettext;
 let UserMenuButton = imports.ui.main.panel.statusArea.userMenu;
 
+let settings;
+
 function wrappedText(text, sender, timestamp, direction) {
     let currentTime = (Date.now() / 1000);
-	let type = Tp.ChannelTextMessageType.NORMAL;
+    let type = Tp.ChannelTextMessageType.NORMAL;
 
     if (timestamp == null) {
         timestamp = currentTime;
     }
-	
-	text = _fixText(text);
-	if (text.substr(0, 3) == '/me' && direction != TelepathyClient.NotificationDirection.SENT) {
-		text = text.substr(4);
-		type = Tp.ChannelTextMessageType.ACTION;
-	}
+
+    text = _fixText(text);
+    if (text.substr(0, 3) == '/me' && direction != TelepathyClient.NotificationDirection.SENT) {
+        text = text.substr(4);
+        type = Tp.ChannelTextMessageType.ACTION;
+    }
 
     return {
         text: text,
-		messageType: type,
+        messageType: type,
         sender: sender,
         timestamp: timestamp,
         direction: direction
@@ -296,7 +301,6 @@ Source.prototype = {
     },
 
     _start: function () {
-
         let proxy = this._client.proxy();
         MessageTray.Source.prototype._init.call(this, this.title);
 
@@ -314,7 +318,7 @@ Source.prototype = {
 
         this._notification.connect('clicked', Lang.bind(this, this._flushAttention));
         this.connect('summary-item-clicked', Lang.bind(this, this._flushAttention));
-        
+
         let message = wrappedText(this._initialMessage, this._author, null, direction);
         this._notification.appendMessage(message, false);
 
@@ -425,6 +429,7 @@ Source.prototype = {
     },
 
     _onBuddyStatusChange: function (emitter, buddy, old_status_id, new_status_id) {
+        if (!settings.get_boolean('show-status-changes')) return true;
         if (!this.title) return;
 
         let self = this;
@@ -440,7 +445,7 @@ Source.prototype = {
             let presence = presenceInfo.presence;
             let message = presenceInfo.message;
             if (self._presence == presence) return;
-    
+
             let title = self.title;
             let presenceMessage, shouldNotify;
             if (presence == "away") {
@@ -452,15 +457,15 @@ Source.prototype = {
             } else {
                 return;
             }
-    
+
             self._presence = presence;
-    
+
             if (message)
                 presenceMessage += ' <i>(' + _fixText(message) + ')</i>';
-    
+
             self._notification.appendPresence(presenceMessage, false);
         };
- 
+
         let set_presence_message = function (message) {
             presenceInfo.message = message;
             notify_presence();
@@ -475,25 +480,29 @@ Source.prototype = {
     },
 
     _onBuddySignedOff: function(emitter, buddy) {
+        if (!settings.get_boolean('show-online-offline')) return true;
         if (buddy != this._author_buddy) return;
 
         let shouldNotify = this._presence != 'offline';
         let presenceMessage = _("%s is offline.").format(this.title);
         this._notification.appendPresence(presenceMessage, shouldNotify);
         this._presence = 'offline';
-        if (shouldNotify) 
+        if (shouldNotify) {
             this.notify();
+        }
     },
 
     _onBuddySignedOn: function(emitter, buddy) {
+        if (!settings.get_boolean('show-online-offline')) return true;
         if (buddy != this._author_buddy) return;
 
         let shouldNotify = this._presence == 'offline';
         let presenceMessage = _("%s is online.").format(this.title);
         this._notification.appendPresence(presenceMessage, shouldNotify);
         this._presence = 'online';
-        if (shouldNotify) 
+        if (shouldNotify) {
             this.notify();
+        }
     },
 
 
@@ -644,13 +653,13 @@ PidginClient.prototype = {
         this._setAvailable = this._proxy.connectSignal('SignedOn', Lang.bind(this, this._onSignedOn));
         this._setUnavailable = this._proxy.connectSignal('SignedOff', Lang.bind(this, this._onSignedOff));
     },
-    
+
     disable: function() {
         if (this._displayedImMsgId > 0) {
             this._proxy.disconnectSignal(this._displayedImMsgId);
             this._displayedImMsgId = 0;
         }
-        
+
         if (this._displayedChatMsgId > 0) {
             this._proxy.disconnectSignal(this._displayedChatMsgId);
             this._displayedChatMsgId = 0;
@@ -665,7 +674,6 @@ PidginClient.prototype = {
             this._setUnavailable = 0;
         }
 
-        
         for (let key in this._sources) {
             if (this._sources.hasOwnProperty(key))
                 this._sources[key].destroy();
@@ -694,7 +702,7 @@ PidginClient.prototype = {
             let source = this._sources[conversation];
             if (!source) {
                 source = new Source(this, account, author, message, conversation, flag);
-                source.connect('destroy', Lang.bind(this, 
+                source.connect('destroy', Lang.bind(this,
                     function() {
                         delete this._sources[conversation];
                     }
@@ -738,6 +746,8 @@ PidginClient.prototype = {
 function init(metaObject) {
     var LocalDir;
     LocalDir = metaObject.metadata.localedir;
+    let Convenience = Me.imports.convenience;
+    settings = Convenience.getSettings();
     imports.gettext.bindtextdomain('gnome-shell-extensions', LocalDir);
     return new PidginClient();
 }
