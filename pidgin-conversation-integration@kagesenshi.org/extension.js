@@ -40,21 +40,19 @@ PidginClient.prototype = {
         return this._proxy;
     },
 
-    _messageDisplayed: function(emitter, account, author, message, conversation, flag) {
+    _messageDisplayed: function(emitter, account, details) {
         // only trigger on message received/message sent
+        var author = details[0];
+        var message = details[1];
+        var conversation = details[2];
+        var flag = details[3];
         global.log("Received!");
-        global.log(arguments)
-        global.log("=======================")
-        for (var i = 0; i < arguments.length; i++) {
-            global.log(arguments[i]);
-            global.log("--------------------------------")
-        }
-	global.log(emitter);
-	global.log(account);
-	global.log(author);
-	global.log(message);
-	global.log(conversation);
-	global.log(flag);
+        global.log(emitter);
+        global.log(account);
+        global.log(author);
+        global.log(message);
+        global.log(conversation);
+        global.log(flag);
         global.log("=======================")
             
     }
