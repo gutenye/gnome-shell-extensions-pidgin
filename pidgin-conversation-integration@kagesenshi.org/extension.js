@@ -437,19 +437,33 @@ Source.prototype = {
        */
     _addPendingMessage: function (message) {
         this._pendingMessages.push(message);
-        this._updateCount();
+        this.countUpdated();
         this._addPersistentNotification();
-    },
-
-    _updateCount: function () {
-        //this._setCount(this._pendingMessages.length, this._pendingMessages.length > 0);
-        //this.countUpdated();
     },
 
     _flushPendingMessages: function() {
         this._pendingMessages = [];
-        this._updateCount();
-    }
+        this.countUpdated();
+    },
+
+    /** get unread count message. 
+     * borrowed from https://github.com/muffinmad/pidgin-im-gnome-shell-extension
+     */
+	get count() {
+		return this._pendingMessages.length;
+	},
+
+	get indicatorCount() {
+		return this.count;
+	},
+	
+	get unseenCount() {
+		return this.count;
+	},
+
+	get countVisible() {
+		return this.count > 0;
+	}
 
 }
 
@@ -618,23 +632,6 @@ ImSource.prototype = {
     _removePersistentNotification: function() {
       //UserMenuButton._iconBox.remove_style_class_name('pidgin-notification');
     },
-    
-    _addPendingMessage: function (message) {
-        this._pendingMessages.push(message);
-        this._updateCount();
-        this._addPersistentNotification();
-    },
-
-    _updateCount: function () {
-        //this._setCount(this._pendingMessages.length, this._pendingMessages.length > 0);
-        //this.countUpdated();
-    },
-
-    _flushPendingMessages: function() {
-        this._pendingMessages = [];
-        this._updateCount();
-    }
-
 }
 
 function ChatroomSource(client, account, author, initialMessage, conversation, flag) {
