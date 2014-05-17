@@ -250,27 +250,15 @@ Source.prototype = {
         this._account = account;
         this._conversation = conversation;
         this._blockedMsg = [account, author, initialMessage, conversation, flag];
-        this._iconUri = null;
         this._presence = 'online';
         this._chatState = Tp.ChannelChatState.ACTIVE;
         this._pendingMessages = [];
         this._isChat = false;
-        proxy.PurpleConversationGetTitleRemote(this._conversation, Lang.bind(this, this._async_set_title));
-    },
-
-    _async_set_title: function (title) {
-        title = title[0];
-        let proxy = this._client.proxy();
-        this.title = _fixText(title);
+        this.title = _fixText(proxy.PurpleConversationGetTitleSync(this._conversation).toString());
         if(this._isChat)
-            proxy.PurpleConvChatRemote(this._conversation, Lang.bind(this, this._async_set_conversation_id));
+            this._conversation_id = proxy.PurpleConvChatSync(this._conversation);
         else
-            proxy.PurpleConvImRemote(this._conversation, Lang.bind(this, this._async_set_conversation_id));
-    },
-
-    /**conversation_id : is a conversation_im or conversation_chat **/
-    _async_set_conversation_id: function (conversation_id) {
-        this._conversation_id = conversation_id;
+            this._conversation_id = proxy.PurpleConvImSync(this._conversation);
         this._start();
     },
 
@@ -282,12 +270,12 @@ Source.prototype = {
         let proxy = this._client.proxy();
         MessageTray.Source.prototype._init.call(this, this.title);
 
-        //this._setSummaryIcon(this.createNotificationIcon());
-
         Main.messageTray.add(this);
         this.pushNotification(this._notification);
 
+        //FIXME : does clicked still avaliable
         this._notification.connect('clicked', Lang.bind(this, this._flushAttention));
+		this._notification.connect('expanded', Lang.bind(this, this._flushAttention));
         this.connect('summary-item-clicked', Lang.bind(this, this._flushAttention));
 
         //display Blocked Message
