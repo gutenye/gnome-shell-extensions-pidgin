@@ -253,7 +253,6 @@ Source.prototype = {
         this._presence = 'online';
         this._chatState = Tp.ChannelChatState.ACTIVE;
         this._pendingMessages = [];
-        this._isChat = false;
         this.title = _fixText(proxy.PurpleConversationGetTitleSync(this._conversation).toString());
         if(this._isChat)
             this._conversation_id = proxy.PurpleConvChatSync(this._conversation);
@@ -438,8 +437,8 @@ ImSource.prototype = {
     __proto__ : Source.prototype,
 
     _init : function(client, account, author, initialMessage, conversation, flag) {
-        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
         this._isChat = false;
+        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
     },
 
     _connectSignals : function() {
@@ -588,11 +587,11 @@ ChatroomSource.prototype = {
     __proto__: Source.prototype,
 
     _init: function(client, account, author, initialMessage, conversation, flag) {
-        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
         this._cbNames = {};
         this._cbBlockedMsg = {};
         this._isChat = true;
         this._iconCacheDir = null;
+        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
     },
 
     _connectSignals : function() {
