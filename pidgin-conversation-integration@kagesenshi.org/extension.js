@@ -250,35 +250,14 @@ Source.prototype = {
         this._account = account;
         this._conversation = conversation;
         this._blockedMsg = [account, author, initialMessage, conversation, flag];
-        this._iconUri = null;
         this._presence = 'online';
         this._chatState = Tp.ChannelChatState.ACTIVE;
         this._pendingMessages = [];
-        this._isChat = false;
-        proxy.PurpleConversationGetTitleRemote(this._conversation, Lang.bind(this, this._async_set_title));
-    },
-
-    _async_set_title: function (title) {
-        title = title[0];
-        let proxy = this._client.proxy();
-        this.title = _fixText(title);
+        this.title = _fixText(proxy.PurpleConversationGetTitleSync(this._conversation).toString());
         if(this._isChat)
-            proxy.PurpleConvChatRemote(this._conversation, Lang.bind(this, this._async_set_conversation_id));
+            this._conversation_id = proxy.PurpleConvChatSync(this._conversation);
         else
-            proxy.PurpleConvImRemote(this._conversation, Lang.bind(this, this._async_set_conversation_id));
-    },
-
-    /**conversation_id : is a conversation_im or conversation_chat **/
-    _async_set_conversation_id: function (conversation_id) {
-        this._conversation_id = conversation_id;
-        this._get_icon_begin();
-    },
-
-    _get_icon_begin : function() {
-        this._get_icon_end();
-    },
-
-    _get_icon_end: function () {
+            this._conversation_id = proxy.PurpleConvImSync(this._conversation);
         this._start();
     },
 
@@ -290,12 +269,12 @@ Source.prototype = {
         let proxy = this._client.proxy();
         MessageTray.Source.prototype._init.call(this, this.title);
 
-        this._setSummaryIcon(this.createNotificationIcon());
-
         Main.messageTray.add(this);
         this.pushNotification(this._notification);
 
+        //FIXME : does clicked still avaliable
         this._notification.connect('clicked', Lang.bind(this, this._flushAttention));
+		this._notification.connect('expanded', Lang.bind(this, this._flushAttention));
         this.connect('summary-item-clicked', Lang.bind(this, this._flushAttention));
 
         //display Blocked Message
@@ -345,46 +324,29 @@ Source.prototype = {
         const PURPLE_CONV_UPDATE_UNSEEN = 4;
         if(flags & PURPLE_CONV_UPDATE_UNSEEN) {
             this._flushPendingMessages();
+            this._removePersistentNotification();
         }
     },
 
-    createNotificationIcon: function() {
-        let iconBox = new St.Bin({ style_class: 'avatar-box' });
-        iconBox._size = ICON_SIZE;
+    /** virtual function:
+     * set both tray icon and smaller icon 
+     * borrowed code from https://github.com/muffinmad/pidgin-im-gnome-shell-extension
+     **/
+    getIcon : function() {
+        /** user defined virtual function **/
+        let file = this._get_icon_file();
 
-        if (!this._iconUri) {
-            iconBox.child = new St.Icon({ icon_name: 'avatar-default',
-                //icon_type: St.IconType.FULLCOLOR,
-                icon_size: iconBox._size 
-            });
-        } else {
-            let textureCache = St.TextureCache.get_default();
-            let scale = 1;
-            iconBox.child = textureCache.load_uri_async(this._iconUri, iconBox._size, iconBox._size, scale);
-        }
-        return iconBox;
+        if (file) 
+            return new Gio.FileIcon({ file: Gio.File.new_for_uri(file) });
+        else 
+            return new Gio.ThemedIcon({ name: 'avatar-default' });
     },
-
-    createIcon: function() {
-        let iconBox = new St.Bin();
-        iconBox.child = new St.Icon({ icon_name: 'avatar-default', icon_size: 24 });
-        return iconBox;
-    },
-
-    createSecondaryIcon: function() {
-        let iconBox = new St.Bin();
-        iconBox.child = new St.Icon({ style_class: 'secondary-icon' });
-        iconBox.child.icon_name = 'user-available';
-        return iconBox;
-    },
-
-    // /usr/share/gnome-shell/js/ui/messageTray.js
-    // /usr/share/gnome-shell/js/ui/components/telepathyClient.js
+    /** virtual function:
+     * set the user status icon **/
     getSecondaryIcon: function() {
         let iconName = 'user-available';
         return new Gio.ThemedIcon({ name: iconName });
     },
-
 
     open: function(notification) {
         let proxy = this._client.proxy();
@@ -436,19 +398,33 @@ Source.prototype = {
        */
     _addPendingMessage: function (message) {
         this._pendingMessages.push(message);
-        this._updateCount();
+        this.countUpdated();
         this._addPersistentNotification();
-    },
-
-    _updateCount: function () {
-        //this._setCount(this._pendingMessages.length, this._pendingMessages.length > 0);
-        //this.countUpdated();
     },
 
     _flushPendingMessages: function() {
         this._pendingMessages = [];
-        this._updateCount();
-    }
+        this.countUpdated();
+    },
+
+    /** get unread count message. 
+     * borrowed from https://github.com/muffinmad/pidgin-im-gnome-shell-extension
+     */
+	get count() {
+		return this._pendingMessages.length;
+	},
+
+	get indicatorCount() {
+		return this.count;
+	},
+	
+	get unseenCount() {
+		return this.count;
+	},
+
+	get countVisible() {
+		return this.count > 0;
+	}
 
 }
 
@@ -461,8 +437,8 @@ ImSource.prototype = {
     __proto__ : Source.prototype,
 
     _init : function(client, account, author, initialMessage, conversation, flag) {
-        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
         this._isChat = false;
+        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
     },
 
     _connectSignals : function() {
@@ -482,29 +458,14 @@ ImSource.prototype = {
         Source.prototype.destroy.call(this);
     },
 
-    _get_icon_begin : function() {
+    _get_icon_file : function() {
         let proxy = this._client.proxy();
-        proxy.PurpleFindBuddyRemote(this._account, this._author, Lang.bind(this, this._async_set_author_buddy))
-    },
-
-    _async_set_author_buddy: function (author_buddy) {
-        let proxy = this._client.proxy();
-        this._author_buddy = author_buddy;
-        proxy.PurpleBuddyGetIconRemote(this._author_buddy, Lang.bind(this, this._async_get_icon));
-    },
-
-    _async_get_icon: function(iconobj) {
-        let proxy = this._client.proxy();
-        if (iconobj && iconobj != 0) 
-            proxy.PurpleBuddyIconGetFullPathRemote(iconobj, Lang.bind(this, this._async_get_icon_path));
-        else
-            this._get_icon_end();
-    },
-
-    _async_get_icon_path: function(iconpath) {
-        if(iconpath)
-            this._iconUri = 'file://' + iconpath;
-        this._get_icon_end();
+        let buddy = proxy.PurpleFindBuddySync(this._account, this._author);
+        let icon = proxy.PurpleBuddyGetIconSync(buddy);
+        var icon_file = false;
+		if (icon && icon != 0)
+			icon_file = 'file://' + proxy.PurpleBuddyIconGetFullPathSync(icon);
+        return icon_file;
     },
 
     _onBuddyStatusChange: function (emitter, buddy, old_status_id, new_status_id) {
@@ -610,6 +571,13 @@ ImSource.prototype = {
 
     },
 
+    _addPersistentNotification: function() {
+      //UserMenuButton._iconBox.add_style_class_name('pidgin-notification');
+    },
+
+    _removePersistentNotification: function() {
+      //UserMenuButton._iconBox.remove_style_class_name('pidgin-notification');
+    },
 }
 
 function ChatroomSource(client, account, author, initialMessage, conversation, flag) {
@@ -619,11 +587,11 @@ ChatroomSource.prototype = {
     __proto__: Source.prototype,
 
     _init: function(client, account, author, initialMessage, conversation, flag) {
-        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
         this._cbNames = {};
         this._cbBlockedMsg = {};
         this._isChat = true;
         this._iconCacheDir = null;
+        Source.prototype._init.call(this, client, account, author, initialMessage, conversation, flag);
     },
 
     _connectSignals : function() {
@@ -638,37 +606,16 @@ ChatroomSource.prototype = {
         Source.prototype.destroy.call(this);
     },
 
-    _get_icon_begin: function() {
+    _get_icon_file : function() {
         let proxy = this._client.proxy();
-        proxy.PurpleBuddyIconsGetCacheDirRemote(Lang.bind(this, this._async_get_icon_cache_dir));
-    },
-
-    _async_get_icon_cache_dir: function(dir) {
-        let proxy = this._client.proxy();
-        this._iconCacheDir = dir;
-        if(!dir){
-            this._get_icon_end();
-            return;
-        }
-        proxy.PurpleConversationGetNameRemote(this._conversation, Lang.bind(this, this._async_get_chat_name));
-    },
-
-    _async_get_chat_name: function(chat_name) {
-        let proxy = this._client.proxy();
-        proxy.PurpleBlistFindChatRemote(this._account, chat_name[0], Lang.bind(this, this._async_get_chat_node));
-    },
-
-    _async_get_chat_node: function(chat_node) {
-        let proxy = this._client.proxy();
-        proxy.PurpleBlistNodeGetStringRemote(chat_node, "custom_buddy_icon", Lang.bind(this, this._get_icon_file_name));
-    },
-
-    _get_icon_file_name: function(file_name) {
-        if(file_name && file_name != ""){
-            this._iconUri = "file://"+this._iconCacheDir+"/"+file_name;
-            log(this._iconUri);
-        }
-        this._get_icon_end();
+        let cachedir = proxy.PurpleBuddyIconsGetCacheDirSync();
+        let chat_name = proxy.PurpleConversationGetNameSync(this._conversation);
+        let chat_node = proxy.PurpleBlistFindChatSync(this._account, chat_name[0]);
+        let icon = proxy.PurpleBlistNodeGetStringSync(chat_node, "custom_buddy_icon");
+        var icon_file = false;
+        if(icon && icon != 0)
+            icon_file = "file://"+cachedir+"/"+icon;
+        return icon_file;
     },
 
     _async_find_buddy : function(buddy, something, author) {
