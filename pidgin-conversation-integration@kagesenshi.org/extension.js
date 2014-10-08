@@ -650,6 +650,12 @@ ChatroomSource.prototype = {
         }
         if (text && (this._conversation == conversation)) {
             let direction = null;
+
+            if (! (flag & 0x0020)) {
+                // only display chat messages that have the user's NICK mentioned
+                return;
+            }
+
             if (flag &  0x0001) {
                 direction = TelepathyClient.NotificationDirection.SENT;
                 author_nick = "me";
