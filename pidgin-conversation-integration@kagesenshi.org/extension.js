@@ -548,9 +548,9 @@ ImSource.prototype = {
         var flag = details[4];
         if (text && (this._conversation == conversation)) {
             let direction = null;
-            if (flag == 1) {
+            if (flag & 0x0001) {
                 direction = TelepathyClient.NotificationDirection.SENT;
-            } else if (flag == 2) {
+            } else if (flag & 0x0002) {
                 direction = TelepathyClient.NotificationDirection.RECEIVED;
             }
 
@@ -650,10 +650,10 @@ ChatroomSource.prototype = {
         }
         if (text && (this._conversation == conversation)) {
             let direction = null;
-            if (flag == 1) {
+            if (flag &  0x0001) {
                 direction = TelepathyClient.NotificationDirection.SENT;
                 author_nick = "me";
-            } else if (flag == 2) {
+            } else if (flag &  0x0002) {
                 direction = TelepathyClient.NotificationDirection.RECEIVED;
                 author_nick = this._cbNames[author];
             }
